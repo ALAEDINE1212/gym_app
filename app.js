@@ -1,6 +1,6 @@
-// Step 1: Import Firebase v9+ modular functions
+// Step 1: Import Firebase v9+ modular functions for REALTIME DATABASE
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getDatabase, ref, push, get, query, orderByChild, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
 
 // Step 2: Your web app's Firebase configuration
 const firebaseConfig = {
@@ -14,10 +14,10 @@ const firebaseConfig = {
     measurementId: "G-P8HTCXFKTS"
 };
 
-// Step 3: Initialize Firebase and Firestore
+// Step 3: Initialize Firebase and get a reference to the Realtime Database
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const sessionsCollection = collection(db, 'sessions');
+const db = getDatabase(app);
+const sessionsRef = ref(db, 'sessions');
 
 // DOM Elements
 const trackerSection = document.getElementById('tracker-section');
@@ -31,7 +31,7 @@ const saveSessionBtn = document.getElementById('save-session-btn');
 const sessionNameInput = document.getElementById('session-name');
 const chartsContainer = document.getElementById('charts-container');
 
-// ---- Power Calculation Logic ----
+// ---- Power Calculation Logic (Unchanged) ----
 const calculatePower = (sets, addSets, reps, addReps) => {
     const s = parseFloat(sets) || 1;
     const as = parseFloat(addSets) || 1;
@@ -41,7 +41,7 @@ const calculatePower = (sets, addSets, reps, addReps) => {
     return Math.round(power * 100) / 100;
 };
 
-// ---- Update Total Power Score ----
+// ---- Update Total Power Score (Unchanged) ----
 const updateTotalPower = () => {
     let total = 0;
     const rows = workoutTableBody.querySelectorAll('tr');
@@ -52,7 +52,7 @@ const updateTotalPower = () => {
     totalPowerSpan.textContent = Math.round(total * 100) / 100;
 };
 
-// ---- Add New Exercise Row to Table ----
+// ---- Add New Exercise Row to Table (Unchanged) ----
 const addExerciseRow = () => {
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -86,8 +86,11 @@ const addExerciseRow = () => {
     });
 };
 
-// ---- Save Session to Firebase ----
+// ---- Save Session to Realtime Database ----
 const saveSession = async () => {
+    // --- DEBUG MESSAGE 1 ---
+    console.log("Save button clicked. The saveSession function has started.");
+
     const sessionName = sessionNameInput.value.trim();
     if (!sessionName) {
         alert('Please enter a name for the session.');
@@ -116,51 +119,64 @@ const saveSession = async () => {
         }
     });
 
+    const dataToSave = {
+        name: sessionName,
+        createdAt: serverTimestamp(),
+        totalPower: parseFloat(totalPowerSpan.textContent),
+        exercises: exercises
+    };
+
+    // --- DEBUG MESSAGE 2 ---
+    console.log("Preparing to send this data to Firebase:", dataToSave);
+
     try {
-        await addDoc(sessionsCollection, {
-            name: sessionName,
-            createdAt: serverTimestamp(),
-            totalPower: parseFloat(totalPowerSpan.textContent),
-            exercises: exercises
-        });
+        await push(sessionsRef, dataToSave);
+        
+        // --- SUCCESS MESSAGE ---
+        console.log("Data successfully sent to Firebase!");
         alert('Session saved successfully! 💪');
+        
         sessionNameInput.value = '';
         workoutTableBody.innerHTML = '';
         updateTotalPower();
         addExerciseRow();
     } catch (error) {
-        console.error("Error saving session: ", error);
-        alert('There was an error saving the session.');
+        // --- ERROR MESSAGE ---
+        // This is the most important message. This will tell us the Firebase error.
+        console.error("FIREBASE ERROR: An error occurred while saving the session:", error);
+        alert('There was an error saving the session. Check the console for details.');
     }
 };
 
-// ---- Load Analytics and Generate Graphs ----
+// ---- Load Analytics from Realtime Database ----
 const loadAnalytics = async () => {
     chartsContainer.innerHTML = 'Loading data...';
-
     try {
-        const q = query(sessionsCollection, orderBy('createdAt', 'asc'));
-        const snapshot = await getDocs(q);
+        const q = query(sessionsRef, orderByChild('createdAt'));
+        const snapshot = await get(q);
         
-        if (snapshot.empty) {
+        if (!snapshot.exists()) {
             chartsContainer.innerHTML = '<p>No data yet. Save a few sessions to see your progress!</p>';
             return;
         }
 
         const exerciseData = {};
-        snapshot.forEach(doc => {
-            const session = doc.data();
-            const sessionDate = session.createdAt.toDate().toLocaleDateString();
+        const allSessions = snapshot.val(); 
 
-            session.exercises.forEach(ex => {
-                if (!exerciseData[ex.name]) {
-                    exerciseData[ex.name] = { labels: [], powers: [] };
-                }
-                exerciseData[ex.name].labels.push(sessionDate);
-                exerciseData[ex.name].powers.push(ex.power);
-            });
-        });
+        for (const sessionId in allSessions) {
+            const session = allSessions[sessionId];
+            const sessionDate = new Date(session.createdAt).toLocaleDateDateString();
 
+            if (session.exercises) {
+                session.exercises.forEach(ex => {
+                    if (!exerciseData[ex.name]) {
+                        exerciseData[ex.name] = { labels: [], powers: [] };
+                    }
+                    exerciseData[ex.name].labels.push(sessionDate);
+                    exerciseData[ex.name].powers.push(ex.power);
+                });
+            }
+        }
         chartsContainer.innerHTML = ''; 
 
         for (const exerciseName in exerciseData) {
@@ -198,14 +214,13 @@ const loadAnalytics = async () => {
                 }
             });
         }
-
     } catch (error) {
         console.error("Error loading analytics: ", error);
         chartsContainer.innerHTML = '<p>Could not load analytics data.</p>';
     }
 };
 
-// ---- View Switching Logic ----
+// ---- View Switching Logic (Unchanged) ----
 const showTrackerView = () => {
     trackerSection.classList.remove('hidden');
     analyticsSection.classList.add('hidden');
