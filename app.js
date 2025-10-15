@@ -78,7 +78,6 @@ const calculatePower = (weight, sets, reps) => {
     const w = parseFloat(weight) || 0;
     const s = parseFloat(sets) || 1;
     const r = parseFloat(reps) || 1;
-    // Simplified power formula based on volume
     return Math.round((w * s * r) / 100);
 };
 
@@ -270,15 +269,245 @@ const loadAnalytics = async () => {
                 options: {
                     plugins: { title: { display: true, text: exName, color: '#e0e0e0', font: { size: 16 } } },
                     scales: {
-                        yVolume: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Volume (kg)', color: '#e0e0e0' }, ticks: { color: '#e0e0e0' } },
-                        yPower: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Power', color: '#e0e0e0' }, grid: { drawOnChartArea: false }, ticks: { color: '#e0e0e0' } },
-                        x: { ticks: { color: '#e0e0e0' } }
+                        yVolume: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Volume (kg)' } },
+                        yPower: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Power' }, grid: { drawOnChartArea: false } }
                     }
                 }
             });
         }
     } catch (error) {
-        console.error("ANALYTICS ERROR:", error);
-        chartsContainer.innerHTML = '<p>Error loading analytics data. Check console for details.</p>';
+        console.error("Error loading analytics:", error);
+        chartsContainer.innerHTML = '<p>Could not load analytics data.</p>';
     }
 };
+
+// ===============================================
+//  SESSION HISTORY & MODAL
+// ===============================================
+const loadHistory = async () => {
+    historyContainer.innerHTML = 'Loading history...';
+    try {
+        const q = query(sessionsRef, orderByChild('createdAt'));
+        const snapshot = await get(q);
+
+        if (!snapshot.exists()) { historyContainer.innerHTML = '<p>No sessions saved yet.</p>'; return; }
+
+        historyContainer.innerHTML = '';
+        const allSessions = [];
+        snapshot.forEach(s => allSessions.push({ id: s.key, ...s.val() }));
+        
+        allSessions.reverse().forEach(session => {
+            const el = document.createElement('div');
+            el.className = 'history-item';
+            el.innerHTML = `
+                <div class="history-item-info">
+                    <h4>${session.name}</h4>
+                    <p>${new Date(session.createdAt).toLocaleDateString()}</p>
+                </div>
+                <div class="history-item-power">
+                    <p>Vol: ${session.totalVolume || 0} kg</p>
+                    <p>Pow: ${session.totalPower || 0}</p>
+                </div>
+                <div class="history-item-actions">
+                    <button class="details-btn">View</button>
+                    <button class="copy-btn">Copy</button>
+                    <button class="delete-btn">Delete</button>
+                </div>`;
+            historyContainer.appendChild(el);
+
+            el.querySelector('.details-btn').addEventListener('click', () => showDetailsModal(session));
+            el.querySelector('.copy-btn').addEventListener('click', () => copySession(session));
+            el.querySelector('.delete-btn').addEventListener('click', () => deleteSession(session.id));
+        });
+    } catch (error) {
+        console.error("Error loading history:", error);
+        historyContainer.innerHTML = '<p>Could not load history.</p>';
+    }
+};
+
+const deleteSession = async (sessionId) => {
+    if (confirm('Are you sure you want to delete this session?')) {
+        try {
+            await remove(ref(db, `sessions/${sessionId}`));
+            alert('Session deleted.');
+            loadHistory(); 
+        } catch (error) {
+            console.error("Error deleting session:", error);
+            alert('Could not delete session.');
+        }
+    }
+};
+
+const copySession = (session) => {
+    if (!session.exercises || !confirm('This will replace your current workout. Continue?')) return;
+    switchView(trackerSection, trackerBtn);
+    workoutTableBody.innerHTML = '';
+    session.exercises.forEach(ex => addExerciseRow(ex));
+};
+
+const showDetailsModal = (session) => {
+    modalTitle.textContent = `${session.name} - ${new Date(session.createdAt).toLocaleDateString()}`;
+    let tableHTML = `
+        <table>
+            <thead>
+                <tr><th>Exercise</th><th>Weight</th><th>Sets</th><th>Reps</th><th>Volume</th><th>Notes</th><th>Power</th></tr>
+            </thead>
+            <tbody>`;
+    session.exercises.forEach(ex => {
+        tableHTML += `
+            <tr>
+                <td>${ex.name}</td><td>${ex.weight}</td><td>${ex.sets}</td><td>${ex.reps}</td>
+                <td>${ex.volume}</td><td>${ex.notes || '-'}</td><td>${ex.power}</td>
+            </tr>`;
+    });
+    tableHTML += `</tbody></table>`;
+    modalBody.innerHTML = tableHTML;
+    detailsModal.classList.remove('hidden');
+};
+
+// ===============================================
+//  BODYWEIGHT TRACKER
+// ===============================================
+const saveBodyweight = async () => {
+    const weight = parseFloat(bodyweightInput.value);
+    if (!weight || weight <= 0) { alert('Please enter a valid weight.'); return; }
+    try {
+        const newRef = push(bodyweightRef);
+        await set(newRef, { weight: weight, createdAt: serverTimestamp() });
+        bodyweightInput.value = '';
+        loadBodyweight();
+    } catch (error) {
+        console.error("Error saving bodyweight:", error);
+        alert('Could not save bodyweight.');
+    }
+};
+
+const loadBodyweight = async () => {
+    try {
+        const q = query(bodyweightRef, orderByChild('createdAt'));
+        const snapshot = await get(q);
+        if (!snapshot.exists()) return;
+
+        const labels = [];
+        const data = [];
+        let listHTML = '<ul>';
+        const entries = [];
+        snapshot.forEach(s => entries.push(s.val()));
+
+        entries.reverse().slice(0, 10).forEach(entry => {
+             listHTML += `<li>${new Date(entry.createdAt).toLocaleDateString()} <span>${entry.weight} kg</span></li>`;
+        });
+        listHTML += '</ul>';
+        bodyweightHistoryList.innerHTML = listHTML;
+        
+        entries.reverse().forEach(entry => {
+            labels.push(new Date(entry.createdAt).toLocaleDateString());
+            data.push(entry.weight);
+        });
+
+        if (bodyweightChart) bodyweightChart.destroy();
+        bodyweightChart = new Chart(bodyweightChartCanvas, {
+            type: 'line',
+            data: { labels, datasets: [{ label: 'Bodyweight (kg)', data, borderColor: '#00aaff', tension: 0.1 }] },
+            options: { plugins: { legend: { display: false } } }
+        });
+    } catch (error) {
+        console.error("Error loading bodyweight:", error);
+    }
+};
+
+// ===============================================
+//  REST TIMER
+// ===============================================
+let timerInterval;
+let timerSeconds = 90;
+
+const updateTimerDisplay = () => {
+    const minutes = Math.floor(timerSeconds / 60);
+    const seconds = timerSeconds % 60;
+    timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
+const startTimer = () => {
+    clearInterval(timerInterval);
+    timerStartBtn.textContent = "Pause";
+    timerInterval = setInterval(() => {
+        timerSeconds--;
+        if (timerSeconds < 0) {
+            clearInterval(timerInterval);
+            timerDisplay.textContent = "00:00";
+        } else {
+            updateTimerDisplay();
+        }
+    }, 1000);
+};
+
+const pauseTimer = () => {
+    clearInterval(timerInterval);
+    timerStartBtn.textContent = "Start";
+};
+
+// ===============================================
+//  VIEW SWITCHING & INITIALIZATION
+// ===============================================
+const views = [trackerSection, analyticsSection, historySection, bodyweightSection];
+const navButtons = [trackerBtn, analyticsBtn, historyBtn, bodyweightBtn];
+
+const switchView = (viewToShow, buttonToActivate) => {
+    views.forEach(v => v.classList.add('hidden'));
+    navButtons.forEach(b => b.classList.remove('active'));
+    viewToShow.classList.remove('hidden');
+    buttonToActivate.classList.add('active');
+
+    if (viewToShow === analyticsSection) loadAnalytics();
+    if (viewToShow === historySection) loadHistory();
+    if (viewToShow === bodyweightSection) loadBodyweight();
+};
+
+const loadInitialData = async () => {
+    const snapshot = await get(exerciseNamesRef);
+    if (snapshot.exists()) {
+        const names = snapshot.val();
+        allExerciseNames = new Set(names);
+        exerciseDataList.innerHTML = '';
+        names.forEach(name => {
+            exerciseDataList.innerHTML += `<option value="${name}"></option>`;
+        });
+    }
+};
+
+// THIS IS THE CRUCIAL FIX: Wait for the DOM to be fully loaded before running any script
+document.addEventListener('DOMContentLoaded', () => {
+    // Event Listeners for navigation and main actions
+    trackerBtn.addEventListener('click', () => switchView(trackerSection, trackerBtn));
+    analyticsBtn.addEventListener('click', () => switchView(analyticsSection, analyticsBtn));
+    historyBtn.addEventListener('click', () => switchView(historySection, historyBtn));
+    bodyweightBtn.addEventListener('click', () => switchView(bodyweightSection, bodyweightBtn));
+    addExerciseBtn.addEventListener('click', () => addExerciseRow());
+    saveSessionBtn.addEventListener('click', saveSession);
+    saveBodyweightBtn.addEventListener('click', saveBodyweight);
+    
+    // Modal listeners
+    modalCloseBtn.addEventListener('click', () => detailsModal.classList.add('hidden'));
+    detailsModal.addEventListener('click', (e) => {
+        if (e.target === detailsModal) detailsModal.classList.add('hidden');
+    });
+
+    // Timer listeners
+    timerStartBtn.addEventListener('click', () => {
+        if (timerStartBtn.textContent === "Start") startTimer();
+        else pauseTimer();
+    });
+    timerResetBtn.addEventListener('click', () => {
+        pauseTimer();
+        timerSeconds = 90;
+        updateTimerDisplay();
+    });
+    timerPlus15Btn.addEventListener('click', () => { timerSeconds += 15; updateTimerDisplay(); });
+    timerMinus15Btn.addEventListener('click', () => { if (timerSeconds > 15) { timerSeconds -= 15; updateTimerDisplay(); }});
+
+    // Initial page setup
+    addExerciseRow();
+    updateTimerDisplay();
+    loadInitialData();
+});
