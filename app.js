@@ -1,6 +1,6 @@
 // Step 1: Import Firebase v9+ modular functions for REALTIME DATABASE
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { getDatabase, ref, push, get, query, orderByChild, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+import { getDatabase, ref, push, get, query, orderByChild, serverTimestamp, remove } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
 
 // Step 2: Your web app's Firebase configuration
 const firebaseConfig = {
@@ -16,28 +16,34 @@ const firebaseConfig = {
 
 // Step 3: Initialize Firebase and get a reference to the Realtime Database
 const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const db = getDatabase(app, "https://gym-b5822-default-rtdb.europe-west1.firebasedatabase.app");
 const sessionsRef = ref(db, 'sessions');
 
 // DOM Elements
 const trackerSection = document.getElementById('tracker-section');
 const analyticsSection = document.getElementById('analytics-section');
+const historySection = document.getElementById('history-section');
 const trackerBtn = document.getElementById('tracker-view-btn');
 const analyticsBtn = document.getElementById('analytics-view-btn');
+const historyBtn = document.getElementById('history-view-btn');
 const addExerciseBtn = document.getElementById('add-exercise-btn');
 const workoutTableBody = document.getElementById('workout-table-body');
 const totalPowerSpan = document.getElementById('total-power');
 const saveSessionBtn = document.getElementById('save-session-btn');
 const sessionNameInput = document.getElementById('session-name');
 const chartsContainer = document.getElementById('charts-container');
+const historyContainer = document.getElementById('history-container');
 
-// ---- Power Calculation Logic (Unchanged) ----
-const calculatePower = (sets, addSets, reps, addReps) => {
+// ---- Power Calculation Logic (Updated) ----
+const calculatePower = (sets, addSets, reps, addReps, weight, addWeight) => {
     const s = parseFloat(sets) || 1;
     const as = parseFloat(addSets) || 1;
     const r = parseFloat(reps) || 1;
     const ar = parseFloat(addReps) || 1;
-    const power = (s * as * r * ar) / 100;
+    const w = parseFloat(weight) || 1;
+    const aw = parseFloat(addWeight) || 1;
+    // New Formula: (s * as * r * ar * w * aw) / 100
+    const power = (s * as * r * ar * w * aw) / 100;
     return Math.round(power * 100) / 100;
 };
 
@@ -52,11 +58,13 @@ const updateTotalPower = () => {
     totalPowerSpan.textContent = Math.round(total * 100) / 100;
 };
 
-// ---- Add New Exercise Row to Table (Unchanged) ----
+// ---- Add New Exercise Row to Table (Updated) ----
 const addExerciseRow = () => {
     const row = document.createElement('tr');
     row.innerHTML = `
         <td><input type="text" class="exercise-name" placeholder="e.g., Bench Press"></td>
+        <td><input type="number" class="weight" min="0"></td>
+        <td><input type="number" class="add-weight" min="0"></td>
         <td><input type="number" class="sets" min="1"></td>
         <td><input type="number" class="add-sets" min="1"></td>
         <td><input type="number" class="reps" min="1"></td>
@@ -69,12 +77,14 @@ const addExerciseRow = () => {
     row.querySelectorAll('input[type="number"]').forEach(input => {
         input.addEventListener('input', () => {
             const currentRow = input.closest('tr');
+            const weight = currentRow.querySelector('.weight').value;
+            const addWeight = currentRow.querySelector('.add-weight').value;
             const sets = currentRow.querySelector('.sets').value;
             const addSets = currentRow.querySelector('.add-sets').value;
             const reps = currentRow.querySelector('.reps').value;
             const addReps = currentRow.querySelector('.add-reps').value;
             
-            const power = calculatePower(sets, addSets, reps, addReps);
+            const power = calculatePower(sets, addSets, reps, addReps, weight, addWeight);
             currentRow.querySelector('.power-score').textContent = power;
             updateTotalPower();
         });
@@ -86,11 +96,8 @@ const addExerciseRow = () => {
     });
 };
 
-// ---- Save Session to Realtime Database ----
+// ---- Save Session to Realtime Database (Updated) ----
 const saveSession = async () => {
-    // --- DEBUG MESSAGE 1 ---
-    console.log("Save button clicked. The saveSession function has started.");
-
     const sessionName = sessionNameInput.value.trim();
     if (!sessionName) {
         alert('Please enter a name for the session.');
@@ -110,6 +117,8 @@ const saveSession = async () => {
         if (exerciseName) {
             exercises.push({
                 name: exerciseName,
+                weight: parseFloat(row.querySelector('.weight').value) || 0,
+                addWeight: parseFloat(row.querySelector('.add-weight').value) || 0,
                 sets: parseFloat(row.querySelector('.sets').value) || 0,
                 addSets: parseFloat(row.querySelector('.add-sets').value) || 0,
                 reps: parseFloat(row.querySelector('.reps').value) || 0,
@@ -119,36 +128,88 @@ const saveSession = async () => {
         }
     });
 
-    const dataToSave = {
-        name: sessionName,
-        createdAt: serverTimestamp(),
-        totalPower: parseFloat(totalPowerSpan.textContent),
-        exercises: exercises
-    };
-
-    // --- DEBUG MESSAGE 2 ---
-    console.log("Preparing to send this data to Firebase:", dataToSave);
-
     try {
-        await push(sessionsRef, dataToSave);
-        
-        // --- SUCCESS MESSAGE ---
-        console.log("Data successfully sent to Firebase!");
+        await push(sessionsRef, {
+            name: sessionName,
+            createdAt: serverTimestamp(),
+            totalPower: parseFloat(totalPowerSpan.textContent),
+            exercises: exercises
+        });
         alert('Session saved successfully! 💪');
-        
         sessionNameInput.value = '';
         workoutTableBody.innerHTML = '';
         updateTotalPower();
         addExerciseRow();
     } catch (error) {
-        // --- ERROR MESSAGE ---
-        // This is the most important message. This will tell us the Firebase error.
-        console.error("FIREBASE ERROR: An error occurred while saving the session:", error);
+        console.error("FIREBASE ERROR:", error);
         alert('There was an error saving the session. Check the console for details.');
     }
 };
 
-// ---- Load Analytics from Realtime Database ----
+// ---- Load Session History (New) ----
+const loadHistory = async () => {
+    historyContainer.innerHTML = 'Loading history...';
+    try {
+        const q = query(sessionsRef, orderByChild('createdAt'));
+        const snapshot = await get(q);
+
+        if (!snapshot.exists()) {
+            historyContainer.innerHTML = '<p>No sessions saved yet.</p>';
+            return;
+        }
+
+        historyContainer.innerHTML = '';
+        const allSessions = [];
+        snapshot.forEach(childSnapshot => {
+            allSessions.push({ id: childSnapshot.key, ...childSnapshot.val() });
+        });
+        
+        allSessions.reverse().forEach(session => {
+            const sessionDate = new Date(session.createdAt).toLocaleDateString();
+            const sessionElement = document.createElement('div');
+            sessionElement.className = 'history-item';
+            sessionElement.innerHTML = `
+                <div class="history-item-info">
+                    <h3>${session.name}</h3>
+                    <p>${sessionDate}</p>
+                </div>
+                <div class="history-item-power">${session.totalPower}</div>
+                <div class="history-item-actions">
+                    <button class="delete-session-btn" data-id="${session.id}">Delete</button>
+                </div>
+            `;
+            historyContainer.appendChild(sessionElement);
+        });
+
+        document.querySelectorAll('.delete-session-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const sessionId = e.target.dataset.id;
+                if (confirm('Are you sure you want to delete this session?')) {
+                    await deleteSession(sessionId);
+                }
+            });
+        });
+
+    } catch (error) {
+        console.error("Error loading history:", error);
+        historyContainer.innerHTML = '<p>Could not load session history.</p>';
+    }
+};
+
+// ---- Delete Session (New) ----
+const deleteSession = async (sessionId) => {
+    const sessionToDeleteRef = ref(db, `sessions/${sessionId}`);
+    try {
+        await remove(sessionToDeleteRef);
+        alert('Session deleted.');
+        loadHistory(); 
+    } catch (error) {
+        console.error("Error deleting session:", error);
+        alert('Could not delete session.');
+    }
+};
+
+// ---- Load Analytics from Realtime Database (Unchanged) ----
 const loadAnalytics = async () => {
     chartsContainer.innerHTML = 'Loading data...';
     try {
@@ -165,7 +226,7 @@ const loadAnalytics = async () => {
 
         for (const sessionId in allSessions) {
             const session = allSessions[sessionId];
-            const sessionDate = new Date(session.createdAt).toLocaleDateDateString();
+            const sessionDate = new Date(session.createdAt).toLocaleDateString();
 
             if (session.exercises) {
                 session.exercises.forEach(ex => {
@@ -220,20 +281,34 @@ const loadAnalytics = async () => {
     }
 };
 
-// ---- View Switching Logic (Unchanged) ----
+// ---- View Switching Logic (Updated) ----
 const showTrackerView = () => {
     trackerSection.classList.remove('hidden');
     analyticsSection.classList.add('hidden');
+    historySection.classList.add('hidden');
     trackerBtn.classList.add('active');
     analyticsBtn.classList.remove('active');
+    historyBtn.classList.remove('active');
 };
 
 const showAnalyticsView = () => {
     trackerSection.classList.add('hidden');
     analyticsSection.classList.remove('hidden');
+    historySection.classList.add('hidden');
     trackerBtn.classList.remove('active');
     analyticsBtn.classList.add('active');
+    historyBtn.classList.remove('active');
     loadAnalytics();
+};
+
+const showHistoryView = () => {
+    trackerSection.classList.add('hidden');
+    analyticsSection.classList.add('hidden');
+    historySection.classList.remove('hidden');
+    trackerBtn.classList.remove('active');
+    analyticsBtn.classList.remove('active');
+    historyBtn.classList.add('active');
+    loadHistory();
 };
 
 // ---- Event Listeners ----
@@ -241,6 +316,7 @@ addExerciseBtn.addEventListener('click', addExerciseRow);
 saveSessionBtn.addEventListener('click', saveSession);
 trackerBtn.addEventListener('click', showTrackerView);
 analyticsBtn.addEventListener('click', showAnalyticsView);
+historyBtn.addEventListener('click', showHistoryView);
 
 // ---- Initial Load ----
 addExerciseRow();

@@ -16,20 +16,24 @@
         <nav>
             <button id="tracker-view-btn" class="active">Workout</button>
             <button id="analytics-view-btn">Analytics</button>
+            <button id="history-view-btn">History</button>
         </nav>
     </header>
 
     <main>
+        <!-- Workout Tracker View -->
         <section id="tracker-section">
             <div class="session-controls">
-                <input type="text" id="session-name" placeholder="e.g., Push Day - Oct 15, 2025">
+                <input type="text" id="session-name" placeholder="e.g., Push Day - Oct 16, 2025">
                 <button id="save-session-btn">Save Session</button>
             </div>
-            <div class="table-container">s
+            <div class="table-container">
                 <table>
                     <thead>
                         <tr>
                             <th>Exercise</th>
+                            <th>Weight</th>
+                            <th>Add. Weight</th>
                             <th>Sets</th>
                             <th>Add. Sets</th>
                             <th>Reps</th>
@@ -39,7 +43,8 @@
                         </tr>
                     </thead>
                     <tbody id="workout-table-body">
-                        </tbody>
+                        <!-- Exercise rows will be added here by JavaScript -->
+                    </tbody>
                 </table>
             </div>
             <button id="add-exercise-btn">+ Add Exercise</button>
@@ -48,16 +53,29 @@
             </div>
         </section>
 
+        <!-- Analytics View -->
         <section id="analytics-section" class="hidden">
             <h2>Your Improvement</h2>
             <p>Here are graphs showing the 'Power Score' for each exercise over time.</p>
             <div id="charts-container">
-                </div>
+                <!-- Charts will be generated here by JavaScript -->
+            </div>
+        </section>
+
+        <!-- History View -->
+        <section id="history-section" class="hidden">
+            <h2>Session History</h2>
+            <p>Here are all your previously saved workout sessions.</p>
+            <div id="history-container">
+                <!-- Session history will be loaded here by JavaScript -->
+            </div>
         </section>
     </main>
 
+    <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
+    <!-- Your Custom JavaScript and Firebase v9+ (loaded as a module) -->
     <script type="module" src="app.js"></script>
 
 </body>
