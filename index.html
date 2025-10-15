@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gym Progress Tracker</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <header>
+        <h1>Gym Tracker</h1>
+        <nav>
+            <button id="tracker-view-btn" class="active">Workout</button>
+            <button id="analytics-view-btn">Analytics</button>
+        </nav>
+    </header>
+
+    <main>
+        <section id="tracker-section">
+            <div class="session-controls">
+                <input type="text" id="session-name" placeholder="e.g., Push Day - Oct 15, 2025">
+                <button id="save-session-btn">Save Session</button>
+            </div>
+            <div class="table-container">s
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Exercise</th>
+                            <th>Sets</th>
+                            <th>Add. Sets</th>
+                            <th>Reps</th>
+                            <th>Add. Reps</th>
+                            <th>Power Score</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="workout-table-body">
+                        </tbody>
+                </table>
+            </div>
+            <button id="add-exercise-btn">+ Add Exercise</button>
+            <div class="total-power-container">
+                <h2>Total Session Power: <span id="total-power">0</span></h2>
+            </div>
+        </section>
+
+        <section id="analytics-section" class="hidden">
+            <h2>Your Improvement</h2>
+            <p>Here are graphs showing the 'Power Score' for each exercise over time.</p>
+            <div id="charts-container">
+                </div>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script type="module" src="app.js"></script>
+
+</body>
+</html>
