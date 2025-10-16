@@ -72,9 +72,6 @@ td input.notes-input { max-width: 200px; }
 .modal-content { background-color: var(--surface-color); padding: 2rem; border-radius: 8px; width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; position: relative; }
 .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 2rem; color: var(--text-muted-color); cursor: pointer; }
 
-/* =============================================== */
-/* MOBILE RESPONSIVE STYLES                      */
-/* =============================================== */
 @media (max-width: 768px) {
     body { font-size: 14px; }
     main { padding: 1rem; }
@@ -82,24 +79,17 @@ td input.notes-input { max-width: 200px; }
     header { flex-direction: column; gap: 1rem; padding: 1rem; }
     nav { flex-wrap: wrap; justify-content: center;}
     nav button { padding: 0.5rem 0.8rem; font-size: 0.8rem;}
-
     .session-controls { flex-direction: column; }
-    
     th, td { padding: 0.5rem; }
     td input[type="number"] { max-width: 60px; }
     td input.notes-input { max-width: 100px; }
-
     .totals-container h2 { font-size: 1rem; }
-
     #timer-display { font-size: 2.5rem; }
     .timer-controls button { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
-
-    #pr-container { grid-template-columns: 1fr; } /* Stack PR cards */
-
+    #pr-container { grid-template-columns: 1fr; }
     .history-item { grid-template-columns: 1fr; gap: 0.5rem; }
     .history-item-power { text-align: left; }
     .history-item-actions { grid-column: 1 / -1; grid-row: 3 / 4; justify-content: flex-end; }
-    
     .bodyweight-grid { grid-template-columns: 1fr; }
     .bodyweight-input-container { margin-bottom: 2rem; }
 }

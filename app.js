@@ -24,22 +24,13 @@ const exerciseNamesRef = ref(db, 'exerciseNames');
 const prsRef = ref(db, 'personalRecords');
 const bodyweightRef = ref(db, 'bodyweight');
 
-// Global state
 let bodyweightChart;
 let allExerciseNames = new Set();
 
-// ===============================================
-//  CALCULATION LOGIC
-// ===============================================
 const calculatePower = (weight, sets, reps) => ((parseFloat(weight) || 0) * (parseFloat(sets) || 1) * (parseFloat(reps) || 1)) / 100;
 const calculateVolume = (weight, sets, reps) => (parseFloat(weight) || 0) * (parseFloat(sets) || 0) * (parseFloat(reps) || 0);
 
-
-// ===============================================
-//  MAIN APP LOGIC (RUNS AFTER PAGE LOADS)
-// ===============================================
 document.addEventListener('DOMContentLoaded', () => {
-    // --- DOM ELEMENTS (fetched after DOM is ready) ---
     const trackerSection = document.getElementById('tracker-section');
     const analyticsSection = document.getElementById('analytics-section');
     const historySection = document.getElementById('history-section');
@@ -72,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalTitle = document.getElementById('modal-title');
     const modalBody = document.getElementById('modal-body');
 
-    // --- WORKOUT TRACKER FUNCTIONS ---
     const updateRowCalculations = (row) => {
         const weight = row.querySelector('.weight').value;
         const sets = row.querySelector('.sets').value;
@@ -94,13 +84,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const addExerciseRow = (exercise = {}) => {
         const row = document.createElement('tr');
+        // Added autocomplete="off" to all inputs to prevent browser autofill issues
         row.innerHTML = `
-            <td><input type="text" class="exercise-name" placeholder="e.g., Bench Press" list="exercise-list" value="${exercise.name || ''}"></td>
-            <td><input type="number" class="weight" min="0" value="${exercise.weight || ''}"></td>
-            <td><input type="number" class="sets" min="1" value="${exercise.sets || ''}"></td>
-            <td><input type="number" class="reps" min="1" value="${exercise.reps || ''}"></td>
+            <td><input type="text" class="exercise-name" placeholder="e.g., Bench Press" list="exercise-list" value="${exercise.name || ''}" autocomplete="off"></td>
+            <td><input type="number" class="weight" min="0" value="${exercise.weight || ''}" autocomplete="off"></td>
+            <td><input type="number" class="sets" min="1" value="${exercise.sets || ''}" autocomplete="off"></td>
+            <td><input type="number" class="reps" min="1" value="${exercise.reps || ''}" autocomplete="off"></td>
             <td class="volume-score">0</td>
-            <td><input type="text" class="notes-input" placeholder="Notes..." value="${exercise.notes || ''}"></td>
+            <td><input type="text" class="notes-input" placeholder="Notes..." value="${exercise.notes || ''}" autocomplete="off"></td>
             <td class="power-score">0.00</td>
             <td><button class="delete-row-btn">&times;</button></td>
         `;
@@ -119,15 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rows.forEach(row => {
             const exerciseName = row.querySelector('.exercise-name').value.trim();
             if (exerciseName) {
-                const exerciseData = {
-                    name: exerciseName,
-                    weight: parseFloat(row.querySelector('.weight').value) || 0,
-                    sets: parseFloat(row.querySelector('.sets').value) || 0,
-                    reps: parseFloat(row.querySelector('.reps').value) || 0,
-                    volume: parseFloat(row.querySelector('.volume-score').textContent) || 0,
-                    power: parseFloat(row.querySelector('.power-score').textContent) || 0,
-                    notes: row.querySelector('.notes-input').value.trim()
-                };
+                const exerciseData = { name: exerciseName, weight: parseFloat(row.querySelector('.weight').value) || 0, sets: parseFloat(row.querySelector('.sets').value) || 0, reps: parseFloat(row.querySelector('.reps').value) || 0, volume: parseFloat(row.querySelector('.volume-score').textContent) || 0, power: parseFloat(row.querySelector('.power-score').textContent) || 0, notes: row.querySelector('.notes-input').value.trim() };
                 exercises.push(exerciseData);
                 updatePR(exerciseData);
                 allExerciseNames.add(exerciseName);
@@ -144,7 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { console.error("FIREBASE ERROR:", error); alert('Error saving session. Check console.'); }
     };
 
-    // --- ANALYTICS & PR FUNCTIONS ---
     const updatePR = async (exercise) => {
         if (!exercise.name || !exercise.weight) return;
         const prRef = ref(db, `personalRecords/${exercise.name}`);
@@ -172,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
             allExerciseNames.delete(exNameToDelete);
             await set(exerciseNamesRef, Array.from(allExerciseNames));
             alert(`"${exNameToDelete}" data deleted.`);
+            await loadInitialData(); // Refresh autocomplete list
             loadAnalytics();
         } catch (error) { console.error("Error deleting exercise data:", error); alert("Could not delete exercise data."); }
     };
@@ -179,15 +162,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadAnalytics = async () => {
         chartsContainer.innerHTML = 'Loading data...';
         try {
-            loadPRs();
+            await loadPRs();
             const q = query(sessionsRef, orderByChild('createdAt'));
             const snapshot = await get(q);
             if (!snapshot.exists()) { chartsContainer.innerHTML = '<p>No data yet for charts.</p>'; return; }
             const exerciseData = {};
             snapshot.forEach(child => {
                 const session = child.val();
-                const sessionDate = new Date(session.createdAt).toLocaleDateString();
                 if (session.exercises) session.exercises.forEach(ex => {
+                    const sessionDate = new Date(session.createdAt).toLocaleDateString();
                     if (!exerciseData[ex.name]) exerciseData[ex.name] = { labels: [], volumes: [], powers: [] };
                     exerciseData[ex.name].labels.push(sessionDate);
                     exerciseData[ex.name].volumes.push(ex.volume);
@@ -203,16 +186,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 chartWrapper.appendChild(canvas);
                 chartsContainer.appendChild(chartWrapper);
                 chartWrapper.querySelector('.delete-graph-btn').addEventListener('click', () => deleteExerciseData(exName));
-                new Chart(canvas.getContext('2d'), {
-                    type: 'line',
-                    data: { labels: exerciseData[exName].labels, datasets: [{ label: 'Volume (kg)', data: exerciseData[exName].volumes, borderColor: '#00aaff', yAxisID: 'yVolume' }, { label: 'Power Score', data: exerciseData[exName].powers, borderColor: '#ff4d4d', yAxisID: 'yPower' }] },
-                    options: { plugins: { title: { display: false } }, scales: { yVolume: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Volume (kg)' } }, yPower: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Power' }, grid: { drawOnChartArea: false } } } }
-                });
+                new Chart(canvas.getContext('2d'), { type: 'line', data: { labels: exerciseData[exName].labels, datasets: [{ label: 'Volume (kg)', data: exerciseData[exName].volumes, borderColor: '#00aaff', yAxisID: 'yVolume' }, { label: 'Power Score', data: exerciseData[exName].powers, borderColor: '#ff4d4d', yAxisID: 'yPower' }] }, options: { plugins: { title: { display: false } }, scales: { yVolume: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Volume (kg)' } }, yPower: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Power' }, grid: { drawOnChartArea: false } } } } });
             }
         } catch (error) { console.error("Error loading analytics:", error); chartsContainer.innerHTML = '<p>Could not load analytics data.</p>'; }
     };
 
-    // --- HISTORY & MODAL FUNCTIONS ---
     const loadHistory = async () => {
         historyContainer.innerHTML = 'Loading history...';
         try {
@@ -236,10 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const deleteSession = async (sessionId, elementToRemove) => {
         if (confirm('Are you sure you want to delete this session?')) {
-            try {
-                await remove(ref(db, `sessions/${sessionId}`));
-                elementToRemove.remove();
-            } catch (error) { console.error("Error deleting session:", error); alert('Could not delete session.'); }
+            try { await remove(ref(db, `sessions/${sessionId}`)); elementToRemove.remove(); } catch (error) { console.error("Error deleting session:", error); alert('Could not delete session.'); }
         }
     };
 
@@ -253,21 +228,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const showDetailsModal = (session) => {
         modalTitle.textContent = `${session.name} - ${new Date(session.createdAt).toLocaleDateString()}`;
         let tableHTML = `<table><thead><tr><th>Exercise</th><th>Weight</th><th>Sets</th><th>Reps</th><th>Volume</th><th>Notes</th><th>Power</th></tr></thead><tbody>`;
-        session.exercises.forEach(ex => { tableHTML += `<tr><td>${ex.name}</td><td>${ex.weight}</td><td>${ex.sets}</td><td>${ex.reps}</td><td>${ex.volume}</td><td>${ex.notes || '-'}</td><td>${ex.power.toFixed(2)}</td></tr>`; });
+        (session.exercises || []).forEach(ex => { tableHTML += `<tr><td>${ex.name}</td><td>${ex.weight}</td><td>${ex.sets}</td><td>${ex.reps}</td><td>${ex.volume}</td><td>${ex.notes || '-'}</td><td>${(ex.power || 0).toFixed(2)}</td></tr>`; });
         tableHTML += `</tbody></table>`;
         modalBody.innerHTML = tableHTML;
         detailsModal.classList.remove('hidden');
     };
 
-    // --- BODYWEIGHT FUNCTIONS ---
     const saveBodyweight = async () => {
         const weight = parseFloat(bodyweightInput.value);
         if (!weight || weight <= 0) { alert('Please enter a valid weight.'); return; }
-        try {
-            await push(bodyweightRef, { weight, createdAt: serverTimestamp() });
-            bodyweightInput.value = '';
-            loadBodyweight();
-        } catch (error) { console.error("Error saving bodyweight:", error); alert('Could not save bodyweight.'); }
+        try { await push(bodyweightRef, { weight, createdAt: serverTimestamp() }); bodyweightInput.value = ''; loadBodyweight(); } catch (error) { console.error("Error saving bodyweight:", error); alert('Could not save bodyweight.'); }
     };
 
     const loadBodyweight = async () => {
@@ -275,32 +245,22 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const q = query(bodyweightRef, orderByChild('createdAt'));
             const snapshot = await get(q);
-            if (!snapshot.exists()) { 
-                bodyweightHistoryList.innerHTML = '<ul><li>No entries yet.</li></ul>';
-                if (bodyweightChart) bodyweightChart.destroy();
-                return; 
-            }
+            if (!snapshot.exists()) { bodyweightHistoryList.innerHTML = '<ul><li>No entries yet.</li></ul>'; if (bodyweightChart) bodyweightChart.destroy(); return; }
             const entries = [];
             snapshot.forEach(s => entries.push(s.val()));
             let listHTML = '<ul>';
             entries.slice().reverse().slice(0, 10).forEach(entry => { listHTML += `<li>${new Date(entry.createdAt).toLocaleDateString()} <span>${entry.weight} kg</span></li>`; });
             bodyweightHistoryList.innerHTML = listHTML + '</ul>';
             if (bodyweightChart) bodyweightChart.destroy();
-            bodyweightChart = new Chart(bodyweightChartCanvas.getContext('2d'), {
-                type: 'line',
-                data: { labels: entries.map(e => new Date(e.createdAt).toLocaleDateString()), datasets: [{ label: 'Bodyweight (kg)', data: entries.map(e => e.weight), borderColor: '#00aaff', tension: 0.1 }] },
-                options: { plugins: { legend: { display: false } } }
-            });
+            bodyweightChart = new Chart(bodyweightChartCanvas.getContext('2d'), { type: 'line', data: { labels: entries.map(e => new Date(e.createdAt).toLocaleDateString()), datasets: [{ label: 'Bodyweight (kg)', data: entries.map(e => e.weight), borderColor: '#00aaff', tension: 0.1 }] }, options: { plugins: { legend: { display: false } } } });
         } catch (error) { console.error("Error loading bodyweight:", error); bodyweightHistoryList.innerHTML = '<ul><li>Error loading data.</li></ul>';}
     };
 
-    // --- TIMER FUNCTIONS ---
     let timerInterval, timerSeconds = 90;
     const updateTimerDisplay = () => { timerDisplay.textContent = `${String(Math.floor(timerSeconds / 60)).padStart(2, '0')}:${String(timerSeconds % 60).padStart(2, '0')}`; };
     const startTimer = () => { clearInterval(timerInterval); timerStartBtn.textContent = "Pause"; timerInterval = setInterval(() => { timerSeconds--; if (timerSeconds < 0) { clearInterval(timerInterval); timerDisplay.textContent = "00:00"; } else { updateTimerDisplay(); } }, 1000); };
     const pauseTimer = () => { clearInterval(timerInterval); timerStartBtn.textContent = "Start"; };
 
-    // --- VIEW SWITCHING ---
     const switchView = (viewToShow, buttonToActivate) => {
         [trackerSection, analyticsSection, historySection, bodyweightSection].forEach(v => v.classList.add('hidden'));
         [trackerBtn, analyticsBtn, historyBtn, bodyweightBtn].forEach(b => b.classList.remove('active'));
@@ -311,7 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (viewToShow === bodyweightSection) loadBodyweight();
     };
 
-    // --- INITIAL DATA LOAD ---
     const loadInitialData = async () => {
         const snapshot = await get(exerciseNamesRef);
         if (snapshot.exists()) {
@@ -322,7 +281,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- EVENT LISTENERS ---
     trackerBtn.addEventListener('click', () => switchView(trackerSection, trackerBtn));
     analyticsBtn.addEventListener('click', () => switchView(analyticsSection, analyticsBtn));
     historyBtn.addEventListener('click', () => switchView(historySection, historyBtn));
@@ -337,7 +295,6 @@ document.addEventListener('DOMContentLoaded', () => {
     timerPlus15Btn.addEventListener('click', () => { timerSeconds += 15; updateTimerDisplay(); });
     timerMinus15Btn.addEventListener('click', () => { if (timerSeconds > 15) { timerSeconds -= 15; updateTimerDisplay(); }});
     
-    // --- APP START ---
     addExerciseRow();
     updateTimerDisplay();
     loadInitialData();

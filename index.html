@@ -10,7 +10,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
 </head>
 <body>
-
     <header>
         <h1>Gym Tracker</h1>
         <nav>
@@ -20,7 +19,6 @@
             <button id="bodyweight-view-btn">Bodyweight</button>
         </nav>
     </header>
-
     <main>
         <section id="tracker-section">
             <div class="timer-container">
@@ -41,14 +39,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Exercise</th>
-                            <th>Weight</th>
-                            <th>Sets</th>
-                            <th>Reps</th>
-                            <th>Volume</th>
-                            <th>Notes</th>
-                            <th>Power</th>
-                            <th></th>
+                            <th>Exercise</th><th>Weight</th><th>Sets</th><th>Reps</th><th>Volume</th><th>Notes</th><th>Power</th><th></th>
                         </tr>
                     </thead>
                     <tbody id="workout-table-body"></tbody>
@@ -61,7 +52,6 @@
                 <h2>Total Session Power: <span id="total-power">0</span></h2>
             </div>
         </section>
-
         <section id="analytics-section" class="hidden">
             <h2>Your Improvement</h2>
             <h3>Personal Records (Max Weight)</h3>
@@ -70,13 +60,11 @@
             <p>Here are graphs showing progress for each exercise over time.</p>
             <div id="charts-container"></div>
         </section>
-
         <section id="history-section" class="hidden">
             <h2>Session History</h2>
             <p>Here are all your previously saved workout sessions.</p>
             <div id="history-container"></div>
         </section>
-
         <section id="bodyweight-section" class="hidden">
             <h2>Bodyweight Tracker</h2>
             <div class="bodyweight-grid">
@@ -94,7 +82,6 @@
             </div>
         </section>
     </main>
-
     <div id="details-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <button id="modal-close-btn" class="modal-close">&times;</button>
@@ -102,7 +89,6 @@
             <div id="modal-body" class="table-container"></div>
         </div>
     </div>
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script type="module" src="app.js"></script>
 </body>
