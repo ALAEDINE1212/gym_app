@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const addExerciseRow = (exercise = {}) => {
         const row = document.createElement('tr');
-        // Added autocomplete="off" to all inputs to prevent browser autofill issues
+        // THIS IS THE FIX: Added autocomplete="off" to every input to stop browser autofill
         row.innerHTML = `
             <td><input type="text" class="exercise-name" placeholder="e.g., Bench Press" list="exercise-list" value="${exercise.name || ''}" autocomplete="off"></td>
             <td><input type="number" class="weight" min="0" value="${exercise.weight || ''}" autocomplete="off"></td>
@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
             allExerciseNames.delete(exNameToDelete);
             await set(exerciseNamesRef, Array.from(allExerciseNames));
             alert(`"${exNameToDelete}" data deleted.`);
-            await loadInitialData(); // Refresh autocomplete list
+            await loadInitialData();
             loadAnalytics();
         } catch (error) { console.error("Error deleting exercise data:", error); alert("Could not delete exercise data."); }
     };
