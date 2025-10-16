@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const bodyweightInput = document.getElementById('bodyweight-input');
     const saveBodyweightBtn = document.getElementById('save-bodyweight-btn');
     const bodyweightHistoryList = document.getElementById('bodyweight-history-list');
-    const bodyweightChartCanvas = document.getElementById('bodyweight-chart'); // Get canvas element
+    const bodyweightChartCanvas = document.getElementById('bodyweight-chart');
     const timerDisplay = document.getElementById('timer-display');
     const timerStartBtn = document.getElementById('timer-start-btn');
     const timerResetBtn = document.getElementById('timer-reset-btn');
@@ -275,14 +275,18 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const q = query(bodyweightRef, orderByChild('createdAt'));
             const snapshot = await get(q);
-            if (!snapshot.exists()) { bodyweightHistoryList.innerHTML = '<ul><li>No entries yet.</li></ul>'; return; }
+            if (!snapshot.exists()) { 
+                bodyweightHistoryList.innerHTML = '<ul><li>No entries yet.</li></ul>';
+                if (bodyweightChart) bodyweightChart.destroy();
+                return; 
+            }
             const entries = [];
             snapshot.forEach(s => entries.push(s.val()));
             let listHTML = '<ul>';
             entries.slice().reverse().slice(0, 10).forEach(entry => { listHTML += `<li>${new Date(entry.createdAt).toLocaleDateString()} <span>${entry.weight} kg</span></li>`; });
             bodyweightHistoryList.innerHTML = listHTML + '</ul>';
             if (bodyweightChart) bodyweightChart.destroy();
-            bodyweightChart = new Chart(bodyweightChartCanvas.getContext('2d'), { // Get context here
+            bodyweightChart = new Chart(bodyweightChartCanvas.getContext('2d'), {
                 type: 'line',
                 data: { labels: entries.map(e => new Date(e.createdAt).toLocaleDateString()), datasets: [{ label: 'Bodyweight (kg)', data: entries.map(e => e.weight), borderColor: '#00aaff', tension: 0.1 }] },
                 options: { plugins: { legend: { display: false } } }
